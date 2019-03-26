@@ -20,7 +20,8 @@
 %% ejabberd_hooks callbacks.
 -export([log_packet_send/1,
      log_packet_receive/1,
-     log_packet_offline/1]).
+     log_packet_offline/1,
+     post_result/1]).
 
 -include("xmpp.hrl").
 -include("logger.hrl").
@@ -107,17 +108,61 @@ log_packet(Direction, #message{type = Type, body = Body, id = Id, from = From, t
         % Proc = gen_mod:get_module_proc(global, ?MODULE),
         % gen_server:cast(Proc, {message, Direction1, From, To, Type1, Msg});
         Date = format_date(calendar:local_time()),
-        if Direction1 == 'outgoing' ->
+        if Direction1 == "outgoing" ->
             #jid{lserver = LServer} = From;
           true ->
             #jid{lserver = LServer} = To
         end,
         Url = gen_mod:get_module_opt(LServer, ?MODULE, url, fun(S) -> iolist_to_binary(S) end, false),
+        % url params
+        DateVal = lists:flatten(Date),
+        DirectionVal = lists:flatten(io_lib:format("~s", [ Direction1])), 
+        TypeVal = lists:flatten(io_lib:format("~s", [ Type1])),
+        IdVal = lists:flatten(io_lib:format("~s", [ binary_to_list(Id)])),
+        FromVal = lists:flatten(io_lib:format("~s", [ jid:encode(From)])),
+        ToVal = lists:flatten(io_lib:format("~s", [ jid:encode(To)])),
+        MessageVal = lists:flatten(io_lib:format("~s", [ xmpp:get_text(Body)])),
+        % post data
+        PostData = string:join([
+            "date=", http_uri:encode(DateVal), 
+            "&direction=", http_uri:encode(DirectionVal), 
+            "&type=", http_uri:encode(TypeVal),
+            "&id=", http_uri:encode(IdVal),
+            "&from=", http_uri:encode(FromVal),
+            "&to=", http_uri:encode(ToVal),
+            "&message=", http_uri:encode(MessageVal)
+          ], ""
+        ),
+        {ok, _ReqId} = httpc:request(post,
+           {Url, [], "application/x-www-form-urlencoded", PostData},
+           [],
+           [ {sync, false},
+             {receiver, {?MODULE, post_result, []}}
+             | [] ]),
         ?INFO_MSG("log_packet: Url ~s Date ~s Direction ~s Type ~s Message ~s ID ~s From ~s To ~s", 
-          [Url, Date, Direction1, Type1, xmpp:get_text(Body), binary_to_list(Id), jid:encode(From), jid:encode(To)]);
+          [Url, DateVal, DirectionVal, TypeVal, MessageVal, IdVal, FromVal, ToVal]);
     false ->
         ok
     end.
+
+post_result({_ReqId, {error, Reason}}) ->
+    report_error([ {error, Reason } ]);
+post_result({_ReqId, Result}) ->
+    {StatusLine, Headers, Body} = Result,
+    {_HttpVersion, StatusCode, ReasonPhrase} = StatusLine,
+    if StatusCode < 200;
+       StatusCode > 299 ->
+            ok = report_error([ {status_code,   StatusCode},
+                                {reason_phrase, ReasonPhrase},
+                                {headers,       Headers},
+                                {body,          Body} ]),
+            ok;
+       true ->
+            ok
+    end.
+
+report_error(ReportArgs) ->
+    ok = error_logger:error_report([ mod_message_http_post_cannot_post | ReportArgs ]).
 
 -spec is_carbon(message()) -> {true, direction()} | false.
 is_carbon(#message{meta = #{carbon_copy := true}} = Msg) ->
@@ -140,16 +185,6 @@ should_log(#message{body = Body, sub_els = SubEls}) ->
     orelse lists:any(fun(#xmlel{name = <<"encrypted">>}) -> true;
                 (_) -> false
              end, SubEls).
-
-% -spec write_log(io:device(), direction(), jid(), jid(),
-%         message_type() | offline | carbon, message()) -> ok.
-% write_log(IoDevice, Direction, From, To, Type, Msg) ->
-%     Date = format_date(calendar:local_time()),
-%     #message{body = Body, id = Id} = Msg,
-%     Record = io_lib:format("~s [~s, ~s, ~s, ~p] ~s -> ~s~n",
-%                [Date, Direction, Type, xmpp:get_text(Body), Id,
-%                 jid:encode(From), jid:encode(To)]),
-%     ok = file:write(IoDevice, [Record]).
 
 -spec format_date(calendar:datetime()) -> io_lib:chars().
 format_date({{Year, Month, Day}, {Hour, Minute, Second}}) ->
