@@ -95,7 +95,7 @@ log_packet_offline({_Action, Msg} = Acc) ->
 %% Internal functions.
 %% -------------------------------------------------------------------
 -spec log_packet(direction(), message()) -> any().
-log_packet(Direction, #message{type = Type} = Msg) ->
+log_packet(Direction, #message{type = Type, body = Body, id = Id, from = From, to = To} = Msg) ->
     case should_log(Msg) of
     true ->
         {Type1, Direction1} = case is_carbon(Msg) of
@@ -107,7 +107,14 @@ log_packet(Direction, #message{type = Type} = Msg) ->
         % Proc = gen_mod:get_module_proc(global, ?MODULE),
         % gen_server:cast(Proc, {message, Direction1, From, To, Type1, Msg});
         Date = format_date(calendar:local_time()),
-        ?INFO_MSG("log_packet: ~s ~s ~s", [Date, Direction1, Type1]);
+        if Direction1 == 'outgoing' ->
+            #jid{lserver = LServer} = From;
+          true ->
+            #jid{lserver = LServer} = To
+        end,
+        Url = gen_mod:get_module_opt(LServer, ?MODULE, url, fun(S) -> iolist_to_binary(S) end, false),
+        ?INFO_MSG("log_packet: Url ~s Date ~s Direction ~s Type ~s Message ~s ID ~s From ~s To ~s", 
+          [Url, Date, Direction1, Type1, xmpp:get_text(Body), binary_to_list(Id), jid:encode(From), jid:encode(To)]);
     false ->
         ok
     end.
