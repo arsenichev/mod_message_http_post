@@ -1,0 +1,3 @@
+modules:
+  mod_message_http_post:
+    url: "https://requestbin.jumio.com/1mga9b61"

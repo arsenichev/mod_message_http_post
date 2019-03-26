@@ -1,0 +1,5 @@
+author: "Sergey Arsenichev <s@arsenichev.ru>"
+category: "log"
+summary: "Ejabberd module log messages to remote http server (via webhook)"
+home: "https://github.com/arsenichev/mod_message_http_post/tree/master/"
+url: "git@github.com:arsenichev/mod_message_http_post.git"
