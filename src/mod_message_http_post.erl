@@ -133,14 +133,19 @@ log_packet(Direction, #message{type = Type, body = Body, id = Id, from = From, t
             "&message=", http_uri:encode(MessageVal)
           ], ""
         ),
-        {ok, _ReqId} = httpc:request(post,
-           {Url, [], "application/x-www-form-urlencoded", PostData},
-           [],
-           [ {sync, false},
-             {receiver, {?MODULE, post_result, []}}
-             | [] ]),
-        ?INFO_MSG("log_packet: Url ~s Date ~s Direction ~s Type ~s Message ~s ID ~s From ~s To ~s", 
-          [Url, DateVal, DirectionVal, TypeVal, MessageVal, IdVal, FromVal, ToVal]);
+        if Type1 == chat ->
+            {ok, _ReqId} = httpc:request(post,
+               {Url, [], "application/x-www-form-urlencoded", PostData},
+               [],
+               [ {sync, false},
+                 {receiver, {?MODULE, post_result, []}}
+                 | [] ]),
+            ?INFO_MSG("request: Url ~s Date ~s Direction ~s Type ~s Message ~s ID ~s From ~s To ~s", 
+              [Url, DateVal, DirectionVal, TypeVal, MessageVal, IdVal, FromVal, ToVal]);
+          true ->
+            ?INFO_MSG("log: Date ~s Direction ~s Type ~s Message ~s ID ~s From ~s To ~s", 
+              [DateVal, DirectionVal, TypeVal, MessageVal, IdVal, FromVal, ToVal])
+        end;
     false ->
         ok
     end.
