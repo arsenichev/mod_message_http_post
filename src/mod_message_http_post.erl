@@ -108,7 +108,7 @@ log_packet(Direction, #message{type = Type, body = Body, id = Id, from = From, t
         % Proc = gen_mod:get_module_proc(global, ?MODULE),
         % gen_server:cast(Proc, {message, Direction1, From, To, Type1, Msg});
         Date = format_date(calendar:local_time()),
-        if Direction1 == "outgoing" ->
+        if Direction1 == outgoing ->
             #jid{lserver = LServer} = From;
           true ->
             #jid{lserver = LServer} = To
