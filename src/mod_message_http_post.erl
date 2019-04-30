@@ -108,6 +108,27 @@ log_packet(Direction, #message{type = Type, body = Body, id = Id, from = From, t
         % Proc = gen_mod:get_module_proc(global, ?MODULE),
         % gen_server:cast(Proc, {message, Direction1, From, To, Type1, Msg});
         Date = format_date(calendar:local_time()),
+
+        ToVal = case xmpp:get_subtag(Msg, #addresses{}) of
+          #addresses{list = Addresses} ->
+            Jids = lists:foldl(
+                  fun(Address, St) ->
+                          case Address#address.jid of
+                              #jid{} = JID ->
+                                  LJID = jid:encode(JID),
+                                  ?INFO_MSG("LJID ~s",[LJID]),
+                            lists:append(St, [erlang:binary_to_list(LJID)]);
+                              undefined ->
+                                  St
+                          end
+                  end, [], Addresses),
+            string:join(Jids, ",");
+          false ->
+            erlang:binary_to_list(jid:encode(To))
+        end,
+
+        %?INFO_MSG("AddressesJids: ~s", [ToVal]),
+
         if Direction1 == outgoing ->
             #jid{lserver = LServer} = From;
           true ->
@@ -120,7 +141,7 @@ log_packet(Direction, #message{type = Type, body = Body, id = Id, from = From, t
         TypeVal = lists:flatten(io_lib:format("~s", [ Type1])),
         IdVal = lists:flatten(io_lib:format("~s", [ binary_to_list(Id)])),
         FromVal = lists:flatten(io_lib:format("~s", [ jid:encode(From)])),
-        ToVal = lists:flatten(io_lib:format("~s", [ jid:encode(To)])),
+        %ToVal = lists:flatten(io_lib:format("~s", [ jid:encode(To)])),
         MessageVal = lists:flatten(io_lib:format("~s", [ xmpp:get_text(Body)])),
         % post data
         PostData = string:join([
